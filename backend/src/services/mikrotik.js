@@ -83,10 +83,10 @@ async function pollViaApi(server) {
         timeout:  8,
     });
 
-    await conn.connect();
+    const client = await conn.connect();
     try {
-        const resources  = await conn.write('/system/resource/print');
-        const interfaces = await conn.write('/interface/print').catch(() => []);
+        const resources  = await client.write('/system/resource/print');
+        const interfaces = await client.write('/interface/print').catch(() => []);
 
         const res       = (Array.isArray(resources) ? resources[0] : resources) || {};
         const cpuLoad   = parseFloat(res['cpu-load'])      || 0;
