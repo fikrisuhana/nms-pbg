@@ -35,7 +35,7 @@ get_cpu() {
     local dt=$((total2 - total1))
     local di=$((idle2 - idle1))
     [ "$dt" -eq 0 ] && echo "0" && return
-    echo "scale=2; ($dt - $di) * 100 / $dt" | bc 2>/dev/null || echo "0"
+    awk "BEGIN {printf \"%.2f\", ($dt - $di) * 100 / $dt}"
 }
 
 # ── RAM (bytes) ───────────────────────────────────────────────
