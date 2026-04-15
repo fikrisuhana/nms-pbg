@@ -11,7 +11,8 @@ router.get('/', async (req, res) => {
         const result = await pool.query(
             `SELECT s.id, s.name, s.hostname, s.description, s.type, s.last_seen, s.created_at,
                     m.cpu_usage, m.ram_used, m.ram_total, m.disk_used, m.disk_total,
-                    m.net_rx_bytes, m.net_tx_bytes, m.uptime_seconds, m.recorded_at AS metric_at
+                    m.net_rx_bytes, m.net_tx_bytes, m.uptime_seconds,
+                    m.ping_ms, m.active_sessions, m.recorded_at AS metric_at
              FROM servers s
              LEFT JOIN LATERAL (
                  SELECT * FROM metrics WHERE server_id = s.id ORDER BY recorded_at DESC LIMIT 1

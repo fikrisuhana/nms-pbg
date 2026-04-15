@@ -44,9 +44,16 @@ export default function ServerCard({ server }) {
                     <div className="server-name">{server.name}</div>
                     <div className="server-host">{server.hostname || server.type?.toUpperCase()}</div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span className="text-sm text-muted">{online ? 'Online' : 'Offline'}</span>
-                    <div className={`status-dot ${online ? 'online' : 'offline'}`} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexDirection: 'column', alignItems: 'flex-end' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span className="text-sm text-muted">{online ? 'Online' : 'Offline'}</span>
+                        <div className={`status-dot ${online ? 'online' : 'offline'}`} />
+                    </div>
+                    {server.ping_ms > 0 && (
+                        <span style={{ fontSize: 11, color: 'var(--muted)' }}>
+                            🏓 {parseFloat(server.ping_ms).toFixed(1)} ms
+                        </span>
+                    )}
                 </div>
             </div>
 

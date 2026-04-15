@@ -27,8 +27,8 @@ function prepareNetData(data) {
         const dt   = (new Date(d.ts) - new Date(prev.ts)) / 1000 || 30
         return {
             ...d,
-            net_rx_rate: Math.max(0, ((d.net_rx_bytes - prev.net_rx_bytes) / dt) / 1024),
-            net_tx_rate: Math.max(0, ((d.net_tx_bytes - prev.net_tx_bytes) / dt) / 1024),
+            net_rx_rate: Math.max(0, ((d.net_rx_bytes - prev.net_rx_bytes) / dt) / 1024 / 1024),
+            net_tx_rate: Math.max(0, ((d.net_tx_bytes - prev.net_tx_bytes) / dt) / 1024 / 1024),
         }
     })
 }
@@ -113,6 +113,11 @@ export default function ServerDetail() {
                         <div className="page-title">{server.name}</div>
                         <div className={`status-dot ${online ? 'online' : 'offline'}`} />
                         <span className="text-muted text-sm">{online ? 'Online' : 'Offline'}</span>
+                        {latest?.ping_ms > 0 && (
+                            <span className="badge blue" style={{ fontSize: 11 }}>
+                                🏓 {parseFloat(latest.ping_ms).toFixed(1)} ms
+                            </span>
+                        )}
                     </div>
                     <div className="page-sub">{server.hostname} · {server.type?.toUpperCase()}</div>
                 </div>
@@ -122,12 +127,14 @@ export default function ServerDetail() {
             {/* Quick stats */}
             <div className="stat-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))' }}>
                 {[
-                    { label: 'CPU',    val: `${cpuPct}%` },
-                    { label: 'RAM',    val: `${ramPct}%` },
-                    { label: 'Disk',   val: `${diskPct}%` },
-                    { label: 'Load 1m',val: latest?.load_1 ?? '-' },
-                    { label: 'Uptime', val: fmtUptime(latest?.uptime_seconds) },
-                    { label: 'Proses', val: latest?.process_count ?? '-' },
+                    { label: 'CPU',     val: `${cpuPct}%` },
+                    { label: 'RAM',     val: `${ramPct}%` },
+                    { label: 'Disk',    val: `${diskPct}%` },
+                    { label: 'Load 1m', val: latest?.load_1 ?? '-' },
+                    { label: 'Uptime',  val: fmtUptime(latest?.uptime_seconds) },
+                    { label: 'Proses',  val: latest?.process_count ?? '-' },
+                    { label: 'SSH Aktif', val: latest?.active_sessions ?? '-' },
+                    { label: 'Ping',    val: latest?.ping_ms > 0 ? `${parseFloat(latest.ping_ms).toFixed(1)} ms` : '-' },
                 ].map(s => (
                     <div key={s.label} className="stat-card">
                         <div className="stat-label">{s.label}</div>
@@ -149,10 +156,10 @@ export default function ServerDetail() {
                 <MetricChart title="RAM Usage (%)" data={ramData}  dataKey="ram_pct"  unit="%" color="#a855f7" yDomain={[0,100]} />
                 <MetricChart title="Disk Usage (%)" data={metrics.map(d=>({...d, disk_pct: d.disk_total>0?((d.disk_used/d.disk_total)*100).toFixed(2):0}))} dataKey="disk_pct" unit="%" color="#f59e0b" yDomain={[0,100]} />
                 <MetricChart
-                    title="Network (KB/s)"
+                    title="Network (MB/s)"
                     data={netData}
                     dataKey={[{ key: 'net_rx_rate', label: 'RX', color: '#22c55e' }, { key: 'net_tx_rate', label: 'TX', color: '#ef4444' }]}
-                    unit=" KB/s"
+                    unit=" MB/s"
                 />
             </div>
 

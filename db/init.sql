@@ -32,7 +32,9 @@ CREATE TABLE IF NOT EXISTS metrics (
     load_5          NUMERIC(6,2),
     load_15         NUMERIC(6,2),
     uptime_seconds  BIGINT,
-    process_count   INT
+    process_count   INT,
+    ping_ms         NUMERIC(8,2),
+    active_sessions INT
 );
 
 CREATE INDEX IF NOT EXISTS idx_metrics_server_time ON metrics(server_id, recorded_at DESC);

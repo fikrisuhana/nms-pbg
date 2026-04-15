@@ -13,22 +13,25 @@ router.post('/', agentAuth, async (req, res) => {
         await pool.query(
             `INSERT INTO metrics
                 (server_id, cpu_usage, ram_used, ram_total, disk_used, disk_total,
-                 net_rx_bytes, net_tx_bytes, load_1, load_5, load_15, uptime_seconds, process_count)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+                 net_rx_bytes, net_tx_bytes, load_1, load_5, load_15,
+                 uptime_seconds, process_count, ping_ms, active_sessions)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
             [
                 server.id,
-                parseFloat(b.cpu_usage)    || 0,
-                parseInt(b.ram_used)       || 0,
-                parseInt(b.ram_total)      || 0,
-                parseInt(b.disk_used)      || 0,
-                parseInt(b.disk_total)     || 0,
-                parseInt(b.net_rx_bytes)   || 0,
-                parseInt(b.net_tx_bytes)   || 0,
-                parseFloat(b.load_1)       || 0,
-                parseFloat(b.load_5)       || 0,
-                parseFloat(b.load_15)      || 0,
-                parseInt(b.uptime_seconds) || 0,
-                parseInt(b.process_count)  || 0,
+                parseFloat(b.cpu_usage)      || 0,
+                parseInt(b.ram_used)         || 0,
+                parseInt(b.ram_total)        || 0,
+                parseInt(b.disk_used)        || 0,
+                parseInt(b.disk_total)       || 0,
+                parseInt(b.net_rx_bytes)     || 0,
+                parseInt(b.net_tx_bytes)     || 0,
+                parseFloat(b.load_1)         || 0,
+                parseFloat(b.load_5)         || 0,
+                parseFloat(b.load_15)        || 0,
+                parseInt(b.uptime_seconds)   || 0,
+                parseInt(b.process_count)    || 0,
+                parseFloat(b.ping_ms)        || 0,
+                parseInt(b.active_sessions)  || 0,
             ]
         );
 
