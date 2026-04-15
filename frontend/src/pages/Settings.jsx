@@ -4,7 +4,7 @@ import { getServers, createServer, deleteServer, getTelegram, updateTelegram, te
 export default function Settings() {
     const [servers,   setServers]   = useState([])
     const [tg,        setTg]        = useState({ bot_token: '', chat_id: '', enabled: false })
-    const [newServer, setNewServer] = useState({ name: '', hostname: '', description: '', type: 'linux', mikrotik_host: '', mikrotik_user: '', mikrotik_pass: '', mikrotik_port: 80 })
+    const [newServer, setNewServer] = useState({ name: '', hostname: '', description: '', type: 'linux', mikrotik_host: '', mikrotik_user: '', mikrotik_pass: '', mikrotik_port: 80, mikrotik_api_type: 'rest' })
     const [adminToken, setAdminToken] = useState(localStorage.getItem('nms_admin_token') || '')
     const [msg,       setMsg]       = useState('')
     const [botTokenInput, setBotTokenInput] = useState('')
@@ -31,7 +31,7 @@ export default function Settings() {
         try {
             const created = await createServer(newServer)
             setMsg(`✅ Server ditambahkan! API Key: ${created.api_key}`)
-            setNewServer({ name:'', hostname:'', description:'', type:'linux', mikrotik_host:'', mikrotik_user:'', mikrotik_pass:'', mikrotik_port:80 })
+            setNewServer({ name:'', hostname:'', description:'', type:'linux', mikrotik_host:'', mikrotik_user:'', mikrotik_pass:'', mikrotik_port:80, mikrotik_api_type:'rest' })
             load()
         } catch(e) { setMsg('Gagal tambah server: ' + (e.response?.data?.error || e.message)) }
     }
@@ -166,22 +166,45 @@ export default function Settings() {
                     </div>
                     {newServer.type === 'mikrotik' && (
                         <div>
-                            <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 6, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: 'var(--text2)' }}>
-                                ℹ️ Pastikan REST API aktif di RouterOS: <b>IP → Services → www</b> (port 80).
-                                Akun yang dipakai harus punya hak akses <b>read</b> minimal.
+                            <div className="form-row">
+                                <div className="form-group">
+                                    <label className="form-label">Protokol API</label>
+                                    <select className="form-input" value={newServer.mikrotik_api_type}
+                                        onChange={e => {
+                                            const t = e.target.value
+                                            setNewServer(s => ({
+                                                ...s,
+                                                mikrotik_api_type: t,
+                                                mikrotik_port: t === 'api' ? 8728 : 80,
+                                            }))
+                                        }}>
+                                        <option value="rest">REST API — RouterOS v7+ (port 80)</option>
+                                        <option value="api">Binary API — RouterOS v6/v7 (port 8728)</option>
+                                    </select>
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">Port</label>
+                                    <input type="number" className="form-input"
+                                        value={newServer.mikrotik_port}
+                                        onChange={e => setNewServer(s => ({ ...s, mikrotik_port: e.target.value }))} />
+                                </div>
                             </div>
+                            {newServer.mikrotik_api_type === 'rest' && (
+                                <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 6, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: 'var(--text2)' }}>
+                                    ℹ️ Aktifkan di RouterOS: <b>IP → Services → www</b> (port 80)
+                                </div>
+                            )}
+                            {newServer.mikrotik_api_type === 'api' && (
+                                <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 6, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: 'var(--text2)' }}>
+                                    ℹ️ Aktifkan di RouterOS: <b>IP → Services → api</b> (port 8728)
+                                </div>
+                            )}
                             <div className="form-row">
                                 <div className="form-group">
                                     <label className="form-label">Mikrotik Host / IP *</label>
                                     <input type="text" className="form-input" placeholder="192.168.88.1"
                                         value={newServer.mikrotik_host}
                                         onChange={e => setNewServer(s => ({ ...s, mikrotik_host: e.target.value }))} />
-                                </div>
-                                <div className="form-group">
-                                    <label className="form-label">Port REST API (default: 80)</label>
-                                    <input type="number" className="form-input" placeholder="80"
-                                        value={newServer.mikrotik_port}
-                                        onChange={e => setNewServer(s => ({ ...s, mikrotik_port: e.target.value }))} />
                                 </div>
                             </div>
                             <div className="form-row">

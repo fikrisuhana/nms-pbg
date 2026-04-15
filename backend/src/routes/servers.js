@@ -41,19 +41,21 @@ router.get('/:id', async (req, res) => {
 
 // POST /api/servers — tambah server baru
 router.post('/', adminAuth, async (req, res) => {
-    const { name, hostname, description, type, mikrotik_host, mikrotik_user, mikrotik_pass, mikrotik_port } = req.body;
+    const { name, hostname, description, type, mikrotik_host, mikrotik_user, mikrotik_pass, mikrotik_port, mikrotik_api_type } = req.body;
     if (!name) return res.status(400).json({ error: 'name is required' });
 
-    const stype  = type === 'mikrotik' ? 'mikrotik' : 'linux';
-    const apiKey = stype === 'linux' ? uuidv4() : null;
+    const stype    = type === 'mikrotik' ? 'mikrotik' : 'linux';
+    const apiKey   = stype === 'linux' ? uuidv4() : null;
+    const apiProto = stype === 'mikrotik' ? (mikrotik_api_type === 'api' ? 'api' : 'rest') : null;
+    const defPort  = apiProto === 'api' ? 8728 : 80;
 
     try {
         const result = await pool.query(
-            `INSERT INTO servers (name, hostname, description, type, api_key, mikrotik_host, mikrotik_user, mikrotik_pass, mikrotik_port)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+            `INSERT INTO servers (name, hostname, description, type, api_key, mikrotik_host, mikrotik_user, mikrotik_pass, mikrotik_port, mikrotik_api_type)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
             [name, hostname || null, description || null, stype, apiKey,
              mikrotik_host || null, mikrotik_user || null, mikrotik_pass || null,
-             parseInt(mikrotik_port) || 80]
+             parseInt(mikrotik_port) || defPort, apiProto]
         );
         const server = result.rows[0];
         await insertDefaultThresholds(server.id);
@@ -65,20 +67,23 @@ router.post('/', adminAuth, async (req, res) => {
 
 // PUT /api/servers/:id
 router.put('/:id', adminAuth, async (req, res) => {
-    const { name, hostname, description, mikrotik_host, mikrotik_user, mikrotik_pass, mikrotik_port } = req.body;
+    const { name, hostname, description, mikrotik_host, mikrotik_user, mikrotik_pass, mikrotik_port, mikrotik_api_type } = req.body;
     try {
         const result = await pool.query(
             `UPDATE servers SET
-                name = COALESCE($1, name),
-                hostname = COALESCE($2, hostname),
-                description = COALESCE($3, description),
-                mikrotik_host = COALESCE($4, mikrotik_host),
-                mikrotik_user = COALESCE($5, mikrotik_user),
-                mikrotik_pass = COALESCE($6, mikrotik_pass),
-                mikrotik_port = COALESCE($7, mikrotik_port)
-             WHERE id = $8 RETURNING id, name, hostname, description, type, last_seen`,
+                name              = COALESCE($1, name),
+                hostname          = COALESCE($2, hostname),
+                description       = COALESCE($3, description),
+                mikrotik_host     = COALESCE($4, mikrotik_host),
+                mikrotik_user     = COALESCE($5, mikrotik_user),
+                mikrotik_pass     = COALESCE($6, mikrotik_pass),
+                mikrotik_port     = COALESCE($7, mikrotik_port),
+                mikrotik_api_type = COALESCE($8, mikrotik_api_type)
+             WHERE id = $9 RETURNING id, name, hostname, description, type, last_seen`,
             [name, hostname, description, mikrotik_host, mikrotik_user, mikrotik_pass,
-             mikrotik_port ? parseInt(mikrotik_port) : null, req.params.id]
+             mikrotik_port ? parseInt(mikrotik_port) : null,
+             mikrotik_api_type || null,
+             req.params.id]
         );
         if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
         res.json(result.rows[0]);

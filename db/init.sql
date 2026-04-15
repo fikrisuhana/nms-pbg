@@ -11,7 +11,8 @@ CREATE TABLE IF NOT EXISTS servers (
     mikrotik_host VARCHAR(255),
     mikrotik_user VARCHAR(100),
     mikrotik_pass TEXT,
-    mikrotik_port INT DEFAULT 80,
+    mikrotik_port     INT DEFAULT 80,
+    mikrotik_api_type VARCHAR(10) DEFAULT 'rest',  -- 'rest' (v7+) | 'api' (v6+)
     -- Status
     last_seen   TIMESTAMP,
     created_at  TIMESTAMP NOT NULL DEFAULT NOW()
