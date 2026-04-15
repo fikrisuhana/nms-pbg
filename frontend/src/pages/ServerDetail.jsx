@@ -27,8 +27,8 @@ function prepareNetData(data) {
         const dt   = (new Date(d.ts) - new Date(prev.ts)) / 1000 || 30
         return {
             ...d,
-            net_rx_rate: Math.max(0, ((d.net_rx_bytes - prev.net_rx_bytes) / dt) / 1024 / 1024),
-            net_tx_rate: Math.max(0, ((d.net_tx_bytes - prev.net_tx_bytes) / dt) / 1024 / 1024),
+            net_rx_rate: Math.max(0, ((d.net_rx_bytes - prev.net_rx_bytes) / dt) * 8 / 1024 / 1024),
+            net_tx_rate: Math.max(0, ((d.net_tx_bytes - prev.net_tx_bytes) / dt) * 8 / 1024 / 1024),
         }
     })
 }
@@ -156,10 +156,10 @@ export default function ServerDetail() {
                 <MetricChart title="RAM Usage (%)" data={ramData}  dataKey="ram_pct"  unit="%" color="#a855f7" yDomain={[0,100]} />
                 <MetricChart title="Disk Usage (%)" data={metrics.map(d=>({...d, disk_pct: d.disk_total>0?((d.disk_used/d.disk_total)*100).toFixed(2):0}))} dataKey="disk_pct" unit="%" color="#f59e0b" yDomain={[0,100]} />
                 <MetricChart
-                    title="Network (MB/s)"
+                    title="Network (Mb/s)"
                     data={netData}
                     dataKey={[{ key: 'net_rx_rate', label: 'RX', color: '#22c55e' }, { key: 'net_tx_rate', label: 'TX', color: '#ef4444' }]}
-                    unit=" MB/s"
+                    unit=" Mb/s"
                 />
             </div>
 
