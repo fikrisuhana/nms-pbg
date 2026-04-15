@@ -47,8 +47,13 @@ export default function Settings() {
     async function handleSaveTg(e) {
         e.preventDefault()
         try {
-            const payload = { ...tg }
-            if (botTokenInput) payload.bot_token = botTokenInput
+            // Jangan kirim '***' (nilai masked dari GET) sebagai token baru.
+            // Kirim string kosong agar backend pakai COALESCE dan tetap pakai token lama.
+            const payload = {
+                bot_token: botTokenInput || '',
+                chat_id:   tg.chat_id,
+                enabled:   tg.enabled,
+            }
             await updateTelegram(payload)
             setMsg('✅ Konfigurasi Telegram disimpan.')
             setBotTokenInput('')
@@ -161,15 +166,19 @@ export default function Settings() {
                     </div>
                     {newServer.type === 'mikrotik' && (
                         <div>
+                            <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 6, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: 'var(--text2)' }}>
+                                ℹ️ Pastikan REST API aktif di RouterOS: <b>IP → Services → www</b> (port 80).
+                                Akun yang dipakai harus punya hak akses <b>read</b> minimal.
+                            </div>
                             <div className="form-row">
                                 <div className="form-group">
-                                    <label className="form-label">Mikrotik Host</label>
+                                    <label className="form-label">Mikrotik Host / IP *</label>
                                     <input type="text" className="form-input" placeholder="192.168.88.1"
                                         value={newServer.mikrotik_host}
                                         onChange={e => setNewServer(s => ({ ...s, mikrotik_host: e.target.value }))} />
                                 </div>
                                 <div className="form-group">
-                                    <label className="form-label">Port REST API</label>
+                                    <label className="form-label">Port REST API (default: 80)</label>
                                     <input type="number" className="form-input" placeholder="80"
                                         value={newServer.mikrotik_port}
                                         onChange={e => setNewServer(s => ({ ...s, mikrotik_port: e.target.value }))} />
@@ -177,8 +186,9 @@ export default function Settings() {
                             </div>
                             <div className="form-row">
                                 <div className="form-group">
-                                    <label className="form-label">Username</label>
-                                    <input type="text" className="form-input" value={newServer.mikrotik_user}
+                                    <label className="form-label">Username *</label>
+                                    <input type="text" className="form-input" placeholder="admin"
+                                        value={newServer.mikrotik_user}
                                         onChange={e => setNewServer(s => ({ ...s, mikrotik_user: e.target.value }))} />
                                 </div>
                                 <div className="form-group">
