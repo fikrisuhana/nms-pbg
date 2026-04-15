@@ -44,8 +44,8 @@ router.post('/', adminAuth, async (req, res) => {
     const { name, hostname, description, type, mikrotik_host, mikrotik_user, mikrotik_pass, mikrotik_port } = req.body;
     if (!name) return res.status(400).json({ error: 'name is required' });
 
-    const apiKey = uuidv4();
     const stype  = type === 'mikrotik' ? 'mikrotik' : 'linux';
+    const apiKey = stype === 'linux' ? uuidv4() : null;
 
     try {
         const result = await pool.query(

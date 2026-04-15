@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS servers (
     hostname    VARCHAR(255),
     description TEXT,
     type        VARCHAR(20) NOT NULL DEFAULT 'linux',  -- 'linux' | 'mikrotik'
-    api_key     VARCHAR(64) UNIQUE NOT NULL,
+    api_key     VARCHAR(64) UNIQUE,  -- NULL untuk mikrotik, UUID untuk linux
     -- Mikrotik-only fields (encrypted at app level)
     mikrotik_host VARCHAR(255),
     mikrotik_user VARCHAR(100),

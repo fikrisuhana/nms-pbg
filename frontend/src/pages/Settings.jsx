@@ -212,7 +212,7 @@ export default function Settings() {
                     <div className="table-wrap">
                         <table>
                             <thead>
-                                <tr><th>Nama</th><th>Hostname</th><th>Tipe</th><th>API Key</th><th>Last Seen</th><th></th></tr>
+                                <tr><th>Nama</th><th>Hostname</th><th>Tipe</th><th>API Key / Info</th><th>Last Seen</th><th></th></tr>
                             </thead>
                             <tbody>
                                 {servers.map(s => (
@@ -221,9 +221,13 @@ export default function Settings() {
                                         <td className="text-muted text-sm">{s.hostname || '-'}</td>
                                         <td><span className="badge blue">{s.type}</span></td>
                                         <td>
-                                            <code style={{ fontSize: 11, background: 'var(--surface2)', padding: '2px 6px', borderRadius: 4 }}>
-                                                {s.api_key}
-                                            </code>
+                                            {s.type === 'linux' ? (
+                                                <code style={{ fontSize: 11, background: 'var(--surface2)', padding: '2px 6px', borderRadius: 4 }}>
+                                                    {s.api_key}
+                                                </code>
+                                            ) : (
+                                                <span className="text-muted text-sm">polling otomatis</span>
+                                            )}
                                         </td>
                                         <td className="text-sm text-muted">
                                             {s.last_seen ? new Date(s.last_seen).toLocaleString('id-ID') : 'Belum pernah'}
