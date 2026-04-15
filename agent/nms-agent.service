@@ -1,0 +1,16 @@
+[Unit]
+Description=NMS-PBG Monitoring Agent
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/bin/bash /opt/nms-agent/agent.sh
+Restart=always
+RestartSec=10
+EnvironmentFile=/etc/nms-agent.env
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
