@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, useParams } from 'react-router-dom'
 import Layout from './components/Layout'
 import Dashboard    from './pages/Dashboard'
+import Servers      from './pages/Servers'
 import ServerDetail from './pages/ServerDetail'
 import Alerts       from './pages/Alerts'
 import Settings     from './pages/Settings'
@@ -17,6 +18,7 @@ export default function App() {
             <Layout>
                 <Routes>
                     <Route path="/"            element={<Dashboard />} />
+                    <Route path="/servers"     element={<Servers />} />
                     <Route path="/servers/:id" element={<ServerDetailRoute />} />
                     <Route path="/alerts"      element={<Alerts />} />
                     <Route path="/settings"    element={<Settings />} />

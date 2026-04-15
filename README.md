@@ -5,29 +5,33 @@ Network Monitoring System — monitoring server Linux & Mikrotik dengan alert Te
 ## Arsitektur
 
 ```
-[Server Linux]   ──── HTTPS (agent push) ────►  [NMS Server]
-[Mikrotik]       ◄─── HTTP poll tiap 30s ─────   Backend API
-                                                  PostgreSQL DB
-                                                  React Dashboard
-                                                       │
-                                                  Telegram Alert
+[Server Linux]   ──── HTTPS (agent push tiap 30s) ────►  [NMS Server]
+[Mikrotik]       ◄─── HTTP poll tiap 30s ──────────────   Backend API (Node.js)
+                                                           PostgreSQL DB
+                                                           React Dashboard
+                                                                │
+                                                           Telegram Alert
 ```
 
 ## Fitur
 
-- **Agent-based** untuk server Linux — kirim CPU, RAM, Disk, Network, Load, Uptime tiap 30 detik
-- **Poll-based** untuk Mikrotik — backend pull dari RouterOS REST API
-- **Alert otomatis** ke Telegram saat CPU/RAM/Disk melewati threshold
-- **Threshold per server** — bisa diatur lewat web dashboard (warning & critical %)
-- **Cooldown alert** — tidak spam, ada jeda minimum per alert
-- **Dashboard real-time** — grafik CPU/RAM/Disk/Network dengan pemilihan periode (1h/6h/24h/7d)
-- **Dockerized** — satu `docker-compose up` langsung jalan
+| Fitur | Keterangan |
+|-------|-----------|
+| Agent Linux | Bash script kirim CPU, RAM, Disk, Network, Load, Uptime, Ping, SSH session |
+| Mikrotik Poll | Backend pull dari RouterOS REST API tiap 30 detik |
+| Alert Telegram | Kirim notif saat CPU/RAM/Disk melewati threshold |
+| Threshold per server | Atur warning & critical % + cooldown dari dashboard |
+| Ping monitoring | Agent ukur latency ke NMS server, tampil di dashboard |
+| SSH session | Tampilkan jumlah user aktif yang login via SSH |
+| Dashboard real-time | Auto-refresh 15 detik, tanpa reload halaman |
+| Grafik historis | CPU/RAM/Disk/Network chart — pilih 1h/6h/24h/7d |
+| Dockerized | Satu `docker-compose up -d` langsung jalan |
 
 ---
 
 ## Quick Start
 
-### 1. Clone & konfigurasi
+### 1. Clone & setup
 
 ```bash
 git clone https://github.com/fikrisuhana/nms-pbg.git
@@ -42,74 +46,87 @@ nano .env   # Ganti DB_PASS dan ADMIN_TOKEN
 docker-compose up -d
 ```
 
-- Dashboard: `http://server-ip:8080`
-- API: `http://server-ip:3000`
+- **Dashboard**: `http://server-ip:8080`
+- **API**: `http://server-ip:3000`
 
-### 3. Tambah server pertama
+### 3. Setup pertama kali
 
 1. Buka dashboard → **Settings**
 2. Isi **Admin Token** (dari `.env` `ADMIN_TOKEN`) → Simpan
-3. Tambah server baru → catat **API Key** yang dihasilkan
-4. Konfigurasi Telegram (bot token + chat ID)
+3. Tambah server baru → catat **API Key** yang muncul
+4. Isi Telegram bot token + chat ID → Test Kirim
 
 ---
 
 ## Install Agent di Server Linux
 
-```bash
-# Salin agent ke server target
-scp agent/agent.sh agent/install.sh root@server-target:/tmp/
+### 1 Command (paling simpel)
 
-# Jalankan installer
-ssh root@server-target "bash /tmp/install.sh"
-# Masukkan: NMS Server URL, API Key, interface, interval
+```bash
+curl -sSL https://raw.githubusercontent.com/fikrisuhana/nms-pbg/main/agent/install.sh \
+  | sudo bash -s -- https://monit.domain.com API_KEY_DISINI
 ```
 
-Manual (tanpa installer):
+### Dengan opsi lengkap
 
 ```bash
-# Buat config
-cat > /etc/nms-agent.env <<EOF
-NMS_SERVER=https://nms.domain.com
-API_KEY=uuid-dari-settings
-INTERFACE=eth0
-INTERVAL=30
-DISK_PATH=/
-EOF
+curl -sSL https://raw.githubusercontent.com/fikrisuhana/nms-pbg/main/agent/install.sh \
+  | sudo bash -s -- https://monit.domain.com API_KEY interface interval disk_path
+# contoh:
+# | sudo bash -s -- https://monit.domain.com abc-123 ens3 30 /
+```
 
-# Salin agent
-mkdir -p /opt/nms-agent
-cp agent.sh /opt/nms-agent/
-chmod +x /opt/nms-agent/agent.sh
+### Update agent yang sudah terpasang
 
-# Install & start service
-cp nms-agent.service /etc/systemd/system/
-systemctl daemon-reload
-systemctl enable --now nms-agent
+```bash
+curl -sSL https://raw.githubusercontent.com/fikrisuhana/nms-pbg/main/agent/agent.sh \
+  -o /opt/nms-agent/agent.sh && systemctl restart nms-agent
+```
+
+### Perintah berguna
+
+```bash
+systemctl status nms-agent       # cek status
+journalctl -u nms-agent -f       # lihat log live
+nano /etc/nms-agent.env          # edit config
+systemctl restart nms-agent      # restart
 ```
 
 ---
 
 ## Monitoring Mikrotik
 
-1. Pastikan **REST API aktif** di Mikrotik: *IP → Services → api-ssl atau www (port 80/443)*
-2. Di dashboard Settings → Tambah server → pilih tipe **Mikrotik**
-3. Isi Host, Port, Username, Password
+1. Aktifkan REST API di Mikrotik: **IP → Services → www** (port 80)
+2. Dashboard → Settings → Tambah Server → pilih tipe **Mikrotik**
+3. Isi Host, Port (default 80), Username, Password
 4. Backend otomatis poll tiap 30 detik
 
 ---
 
-## Threshold Alert
+## Threshold Alert Telegram
 
-Per server, bisa diatur dari halaman **Server Detail**:
+Diatur per server di halaman **Server Detail**:
 
-| Metrik | Default Warning | Default Critical |
-|--------|----------------|-----------------|
-| CPU    | 80%            | 90%             |
-| RAM    | 80%            | 90%             |
-| Disk   | 80%            | 90%             |
+| Metrik | Default Warning | Default Critical | Cooldown |
+|--------|----------------|-----------------|---------|
+| CPU    | 80%            | 90%             | 5 menit |
+| RAM    | 80%            | 90%             | 5 menit |
+| Disk   | 80%            | 90%             | 5 menit |
 
-Alert dikirim ke Telegram dengan cooldown (default 5 menit) agar tidak spam.
+Alert tidak spam — ada cooldown per level. Setelah cooldown berlalu baru kirim lagi.
+
+---
+
+## Upgrade DB (jika sudah ada instalasi lama)
+
+Jika upgrade dari versi sebelumnya, jalankan migrasi ini:
+
+```bash
+docker exec nms-pbg-db-1 psql -U nms -d nms -c "
+  ALTER TABLE metrics ADD COLUMN IF NOT EXISTS ping_ms NUMERIC(8,2) DEFAULT 0;
+  ALTER TABLE metrics ADD COLUMN IF NOT EXISTS active_sessions INT DEFAULT 0;
+"
+```
 
 ---
 
@@ -117,17 +134,17 @@ Alert dikirim ke Telegram dengan cooldown (default 5 menit) agar tidak spam.
 
 ```
 nms-pbg/
-├── backend/          — Node.js Express API
+├── backend/              — Node.js Express API
 │   └── src/
-│       ├── routes/   — metrics, servers, alerts, thresholds, telegram, dashboard
-│       ├── services/ — threshold check, telegram send, mikrotik poll
-│       └── db/       — PostgreSQL pool
-├── frontend/         — React dashboard (Vite + Recharts)
+│       ├── routes/       — metrics, servers, alerts, thresholds, telegram, dashboard
+│       ├── services/     — threshold check, telegram send, mikrotik poll
+│       └── db/           — PostgreSQL pool
+├── frontend/             — React + Vite dashboard (dark theme)
 │   └── src/
-│       ├── pages/    — Dashboard, ServerDetail, Alerts, Settings
-│       └── components/
-├── db/               — SQL schema (init.sql)
-├── agent/            — Bash agent + installer + systemd service
+│       ├── pages/        — Dashboard, Servers, ServerDetail, Alerts, Settings
+│       └── components/   — Layout, ServerCard, MetricChart
+├── db/                   — SQL schema (init.sql)
+├── agent/                — Bash agent + installer + systemd service
 └── docker-compose.yml
 ```
 
@@ -135,11 +152,23 @@ nms-pbg/
 
 ## Environment Variables
 
-| Variable       | Default         | Keterangan                        |
-|---------------|-----------------|-----------------------------------|
-| `DB_NAME`     | `nms`           | Nama database PostgreSQL          |
-| `DB_USER`     | `nms`           | User database                     |
-| `DB_PASS`     | `nms_secret`    | Password database (**ganti ini**) |
-| `BACKEND_PORT`| `3000`          | Port backend API                  |
-| `FRONTEND_PORT`| `8080`         | Port dashboard web                |
-| `ADMIN_TOKEN` | `changeme`      | Token admin (**ganti ini**)       |
+| Variable        | Default       | Keterangan                        |
+|----------------|---------------|-----------------------------------|
+| `DB_NAME`      | `nms`         | Nama database PostgreSQL          |
+| `DB_USER`      | `nms`         | User database                     |
+| `DB_PASS`      | `nms_secret`  | Password database (**ganti ini**) |
+| `BACKEND_PORT` | `3000`        | Port backend API                  |
+| `FRONTEND_PORT`| `8080`        | Port dashboard web                |
+| `ADMIN_TOKEN`  | `changeme`    | Token admin (**ganti ini**)       |
+
+---
+
+## Agent Config (`/etc/nms-agent.env`)
+
+| Variable      | Default   | Keterangan                          |
+|--------------|-----------|-------------------------------------|
+| `NMS_SERVER` | —         | URL NMS server (wajib)              |
+| `API_KEY`    | —         | API key dari dashboard (wajib)      |
+| `INTERFACE`  | auto      | Network interface (eth0, ens3, dll) |
+| `INTERVAL`   | `30`      | Interval kirim data (detik)         |
+| `DISK_PATH`  | `/`       | Path disk yang dimonitor            |
