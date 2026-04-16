@@ -12,42 +12,79 @@ router.post('/', agentAuth, async (req, res) => {
     try {
         const sshSessions = Array.isArray(b.ssh_sessions) ? b.ssh_sessions : [];
 
-        // Ambil snapshot sesi sebelumnya untuk deteksi login/logout
-        const prevResult = await pool.query(
-            'SELECT ssh_sessions FROM metrics WHERE server_id = $1 ORDER BY recorded_at DESC LIMIT 1',
-            [server.id]
-        );
+        // Coba ambil snapshot sesi sebelumnya (kolom mungkin belum ada di DB lama)
+        let prevSshSessions = null;
+        try {
+            const prevResult = await pool.query(
+                'SELECT ssh_sessions FROM metrics WHERE server_id = $1 ORDER BY recorded_at DESC LIMIT 1',
+                [server.id]
+            );
+            prevSshSessions = prevResult.rows[0]?.ssh_sessions ?? null;
+        } catch (_) {}
 
-        await pool.query(
-            `INSERT INTO metrics
-                (server_id, cpu_usage, ram_used, ram_total, disk_used, disk_total,
-                 net_rx_bytes, net_tx_bytes, load_1, load_5, load_15,
-                 uptime_seconds, process_count, ping_ms, active_sessions, ssh_sessions)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
-            [
-                server.id,
-                parseFloat(b.cpu_usage)      || 0,
-                parseInt(b.ram_used)         || 0,
-                parseInt(b.ram_total)        || 0,
-                parseInt(b.disk_used)        || 0,
-                parseInt(b.disk_total)       || 0,
-                parseInt(b.net_rx_bytes)     || 0,
-                parseInt(b.net_tx_bytes)     || 0,
-                parseFloat(b.load_1)         || 0,
-                parseFloat(b.load_5)         || 0,
-                parseFloat(b.load_15)        || 0,
-                parseInt(b.uptime_seconds)   || 0,
-                parseInt(b.process_count)    || 0,
-                parseFloat(b.ping_ms)        || 0,
-                parseInt(b.active_sessions)  || 0,
-                sshSessions.length > 0 ? JSON.stringify(sshSessions) : null,
-            ]
-        );
+        // Insert metric — fallback tanpa ssh_sessions kalau kolom belum ada
+        try {
+            await pool.query(
+                `INSERT INTO metrics
+                    (server_id, cpu_usage, ram_used, ram_total, disk_used, disk_total,
+                     net_rx_bytes, net_tx_bytes, load_1, load_5, load_15,
+                     uptime_seconds, process_count, ping_ms, active_sessions, ssh_sessions)
+                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+                [
+                    server.id,
+                    parseFloat(b.cpu_usage)      || 0,
+                    parseInt(b.ram_used)         || 0,
+                    parseInt(b.ram_total)        || 0,
+                    parseInt(b.disk_used)        || 0,
+                    parseInt(b.disk_total)       || 0,
+                    parseInt(b.net_rx_bytes)     || 0,
+                    parseInt(b.net_tx_bytes)     || 0,
+                    parseFloat(b.load_1)         || 0,
+                    parseFloat(b.load_5)         || 0,
+                    parseFloat(b.load_15)        || 0,
+                    parseInt(b.uptime_seconds)   || 0,
+                    parseInt(b.process_count)    || 0,
+                    parseFloat(b.ping_ms)        || 0,
+                    parseInt(b.active_sessions)  || 0,
+                    sshSessions.length > 0 ? JSON.stringify(sshSessions) : null,
+                ]
+            );
+        } catch (insertErr) {
+            if (insertErr.message.includes('ssh_sessions')) {
+                // Kolom belum ada — insert tanpa ssh_sessions
+                await pool.query(
+                    `INSERT INTO metrics
+                        (server_id, cpu_usage, ram_used, ram_total, disk_used, disk_total,
+                         net_rx_bytes, net_tx_bytes, load_1, load_5, load_15,
+                         uptime_seconds, process_count, ping_ms, active_sessions)
+                     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+                    [
+                        server.id,
+                        parseFloat(b.cpu_usage)      || 0,
+                        parseInt(b.ram_used)         || 0,
+                        parseInt(b.ram_total)        || 0,
+                        parseInt(b.disk_used)        || 0,
+                        parseInt(b.disk_total)       || 0,
+                        parseInt(b.net_rx_bytes)     || 0,
+                        parseInt(b.net_tx_bytes)     || 0,
+                        parseFloat(b.load_1)         || 0,
+                        parseFloat(b.load_5)         || 0,
+                        parseFloat(b.load_15)        || 0,
+                        parseInt(b.uptime_seconds)   || 0,
+                        parseInt(b.process_count)    || 0,
+                        parseFloat(b.ping_ms)        || 0,
+                        parseInt(b.active_sessions)  || 0,
+                    ]
+                );
+            } else {
+                throw insertErr;
+            }
+        }
 
         await pool.query('UPDATE servers SET last_seen = NOW() WHERE id = $1', [server.id]);
 
-        // Deteksi SSH login/logout
-        detectSshEvents(server.id, prevResult.rows[0]?.ssh_sessions, sshSessions)
+        // Deteksi SSH login/logout (fire-and-forget)
+        detectSshEvents(server.id, prevSshSessions, sshSessions)
             .catch(err => console.error('[SSH] Event detect error:', err.message));
 
         // Fire-and-forget threshold check
