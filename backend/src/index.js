@@ -11,6 +11,7 @@ const alertsRouter     = require('./routes/alerts');
 const thresholdsRouter = require('./routes/thresholds');
 const telegramRouter   = require('./routes/telegram');
 const dashboardRouter  = require('./routes/dashboard');
+const sshEventsRouter  = require('./routes/sshEvents');
 const { pollMikrotikServers } = require('./services/mikrotik');
 
 const app  = express();
@@ -26,6 +27,7 @@ app.use('/api/alerts',     alertsRouter);
 app.use('/api/thresholds', thresholdsRouter);
 app.use('/api/telegram',   telegramRouter);
 app.use('/api/dashboard',  dashboardRouter);
+app.use('/api/ssh-events', sshEventsRouter);
 
 app.get('/health', (req, res) => res.json({ status: 'ok', ts: new Date().toISOString() }));
 

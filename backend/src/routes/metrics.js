@@ -10,12 +10,20 @@ router.post('/', agentAuth, async (req, res) => {
     const b      = req.body;
 
     try {
+        const sshSessions = Array.isArray(b.ssh_sessions) ? b.ssh_sessions : [];
+
+        // Ambil snapshot sesi sebelumnya untuk deteksi login/logout
+        const prevResult = await pool.query(
+            'SELECT ssh_sessions FROM metrics WHERE server_id = $1 ORDER BY recorded_at DESC LIMIT 1',
+            [server.id]
+        );
+
         await pool.query(
             `INSERT INTO metrics
                 (server_id, cpu_usage, ram_used, ram_total, disk_used, disk_total,
                  net_rx_bytes, net_tx_bytes, load_1, load_5, load_15,
-                 uptime_seconds, process_count, ping_ms, active_sessions)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+                 uptime_seconds, process_count, ping_ms, active_sessions, ssh_sessions)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
             [
                 server.id,
                 parseFloat(b.cpu_usage)      || 0,
@@ -32,10 +40,15 @@ router.post('/', agentAuth, async (req, res) => {
                 parseInt(b.process_count)    || 0,
                 parseFloat(b.ping_ms)        || 0,
                 parseInt(b.active_sessions)  || 0,
+                sshSessions.length > 0 ? JSON.stringify(sshSessions) : null,
             ]
         );
 
         await pool.query('UPDATE servers SET last_seen = NOW() WHERE id = $1', [server.id]);
+
+        // Deteksi SSH login/logout
+        detectSshEvents(server.id, prevResult.rows[0]?.ssh_sessions, sshSessions)
+            .catch(err => console.error('[SSH] Event detect error:', err.message));
 
         // Fire-and-forget threshold check
         checkThresholds(server, b).catch(err =>
@@ -48,6 +61,43 @@ router.post('/', agentAuth, async (req, res) => {
         res.status(500).json({ error: 'Failed to store metric' });
     }
 });
+
+async function detectSshEvents(serverId, prevRaw, newSessions) {
+    let oldSessions = [];
+    if (prevRaw) {
+        try {
+            oldSessions = typeof prevRaw === 'string' ? JSON.parse(prevRaw) : prevRaw;
+        } catch (_) {}
+    }
+    if (!Array.isArray(oldSessions)) oldSessions = [];
+
+    const toKey = s => `${s.user}@${s.ip}`;
+    const oldKeys = new Set(oldSessions.map(toKey));
+    const newKeys = new Set(newSessions.map(toKey));
+
+    const events = [];
+
+    // Login: ada di new tapi tidak di old
+    for (const s of newSessions) {
+        if (!oldKeys.has(toKey(s))) {
+            events.push({ type: 'login', user: s.user, ip: s.ip });
+        }
+    }
+    // Logout: ada di old tapi tidak di new
+    for (const s of oldSessions) {
+        if (!newKeys.has(toKey(s))) {
+            events.push({ type: 'logout', user: s.user, ip: s.ip });
+        }
+    }
+
+    for (const ev of events) {
+        await pool.query(
+            'INSERT INTO ssh_events (server_id, event_type, username, ip_address) VALUES ($1,$2,$3,$4)',
+            [serverId, ev.type, ev.user, ev.ip]
+        );
+        console.log(`[SSH] ${ev.type.toUpperCase()} server=${serverId} user=${ev.user} ip=${ev.ip}`);
+    }
+}
 
 // GET /api/metrics/:serverId?period=1h|6h|24h|7d
 router.get('/:serverId', async (req, res) => {

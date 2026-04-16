@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { getServer, getMetrics, getLatestMetric, getThresholds, updateThresholds, getAlerts } from '../api'
+import { getServer, getMetrics, getLatestMetric, getThresholds, updateThresholds, getAlerts, getSshEvents } from '../api'
 import MetricChart from '../components/MetricChart'
 import { formatDistanceToNow } from 'date-fns'
 import { id as localeId } from 'date-fns/locale'
@@ -52,24 +52,28 @@ export default function ServerDetail() {
     const [period,     setPeriod]     = useState('1h')
     const [thresholds, setThresholds] = useState([])
     const [alerts,     setAlerts]     = useState([])
+    const [sshEvents,  setSshEvents]  = useState([])
     const [loading,    setLoading]    = useState(true)
     const [savingTh,   setSavingTh]   = useState(false)
     const [thForm,     setThForm]     = useState({})
+    const [sshPopup,   setSshPopup]   = useState(false)
 
     const load = useCallback(async () => {
         try {
-            const [srv, lat, m, th, al] = await Promise.all([
+            const [srv, lat, m, th, al, se] = await Promise.all([
                 getServer(id),
                 getLatestMetric(id),
                 getMetrics(id, period),
                 getThresholds(id),
                 getAlerts({ serverId: id, limit: 20 }),
+                getSshEvents(id, 30),
             ])
             setServer(srv)
             setLatest(lat)
             setMetrics(m)
             setThresholds(th)
             setAlerts(al)
+            setSshEvents(se)
             // Init threshold form
             const form = {}
             th.forEach(t => { form[t.metric] = { ...t } })
@@ -103,6 +107,13 @@ export default function ServerDetail() {
     const diskPct  = latest?.disk_total > 0 ? Math.round((latest.disk_used / latest.disk_total) * 100) : 0
     const online   = server.last_seen && (Date.now() - new Date(server.last_seen).getTime()) < 3*60*1000
 
+    // Parse SSH sessions dari latest metric
+    const sshSessions = (() => {
+        const raw = latest?.ssh_sessions
+        if (!raw) return []
+        try { return typeof raw === 'string' ? JSON.parse(raw) : raw } catch(_) { return [] }
+    })()
+
     return (
         <div className="page">
             {/* Header */}
@@ -133,7 +144,6 @@ export default function ServerDetail() {
                     { label: 'Load 1m', val: latest?.load_1 ?? '-' },
                     { label: 'Uptime',  val: fmtUptime(latest?.uptime_seconds) },
                     { label: 'Proses',  val: latest?.process_count ?? '-' },
-                    { label: 'SSH Aktif', val: latest?.active_sessions ?? '-' },
                     { label: 'Ping',    val: latest?.ping_ms > 0 ? `${parseFloat(latest.ping_ms).toFixed(1)} ms` : '-' },
                 ].map(s => (
                     <div key={s.label} className="stat-card">
@@ -141,7 +151,52 @@ export default function ServerDetail() {
                         <div className="stat-value" style={{ fontSize: 22 }}>{s.val}</div>
                     </div>
                 ))}
+                {/* SSH Aktif — clickable */}
+                <div className="stat-card" style={{ cursor: 'pointer', position: 'relative' }}
+                    onClick={() => setSshPopup(p => !p)}>
+                    <div className="stat-label">SSH Aktif</div>
+                    <div className="stat-value" style={{ fontSize: 22 }}>
+                        {latest?.active_sessions ?? '-'}
+                        {latest?.active_sessions > 0 && (
+                            <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 4 }}>▼</span>
+                        )}
+                    </div>
+                    {/* Popup */}
+                    {sshPopup && (
+                        <div style={{
+                            position: 'absolute', top: '100%', left: 0, zIndex: 100,
+                            background: 'var(--surface)', border: '1px solid var(--border)',
+                            borderRadius: 8, padding: '10px 12px', minWidth: 220,
+                            boxShadow: '0 4px 16px rgba(0,0,0,0.3)', marginTop: 4,
+                        }}
+                            onClick={e => e.stopPropagation()}>
+                            <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 8, color: 'var(--muted)' }}>
+                                SESI SSH AKTIF
+                            </div>
+                            {sshSessions.length === 0 ? (
+                                <div style={{ fontSize: 12, color: 'var(--muted)' }}>Tidak ada sesi aktif</div>
+                            ) : (
+                                sshSessions.map((s, i) => (
+                                    <div key={i} style={{
+                                        display: 'flex', justifyContent: 'space-between',
+                                        fontSize: 12, padding: '4px 0',
+                                        borderBottom: i < sshSessions.length - 1 ? '1px solid var(--border)' : 'none',
+                                    }}>
+                                        <span style={{ fontWeight: 600 }}>{s.user}</span>
+                                        <span style={{ color: 'var(--muted)', fontFamily: 'monospace' }}>{s.ip}</span>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    )}
+                </div>
             </div>
+
+            {/* Overlay to close SSH popup */}
+            {sshPopup && (
+                <div style={{ position: 'fixed', inset: 0, zIndex: 99 }}
+                    onClick={() => setSshPopup(false)} />
+            )}
 
             {/* Period picker */}
             <div className="period-pills">
@@ -213,7 +268,7 @@ export default function ServerDetail() {
             </div>
 
             {/* Recent alerts */}
-            <div className="card">
+            <div className="card mb-16">
                 <div className="card-title">🔔 Alert Terbaru</div>
                 {alerts.length === 0 ? (
                     <div className="text-muted text-sm">Tidak ada alert.</div>
@@ -231,6 +286,36 @@ export default function ServerDetail() {
                                         <td><span className={`badge ${a.level}`}>{a.level}</span></td>
                                         <td>{parseFloat(a.value).toFixed(1)}%</td>
                                         <td>{a.acknowledged ? <span className="badge gray">Acked</span> : <span className="badge ok">New</span>}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </div>
+
+            {/* SSH Events */}
+            <div className="card">
+                <div className="card-title">🔐 Riwayat SSH Login/Logout</div>
+                {sshEvents.length === 0 ? (
+                    <div className="text-muted text-sm">Belum ada aktivitas SSH tercatat.</div>
+                ) : (
+                    <div className="table-wrap">
+                        <table>
+                            <thead>
+                                <tr><th>Waktu</th><th>Event</th><th>User</th><th>IP Address</th></tr>
+                            </thead>
+                            <tbody>
+                                {sshEvents.map(e => (
+                                    <tr key={e.id}>
+                                        <td className="text-sm text-muted">{new Date(e.created_at).toLocaleString('id-ID')}</td>
+                                        <td>
+                                            <span className={`badge ${e.event_type === 'login' ? 'ok' : 'gray'}`}>
+                                                {e.event_type === 'login' ? '▶ Login' : '◀ Logout'}
+                                            </span>
+                                        </td>
+                                        <td style={{ fontWeight: 600, fontSize: 13 }}>{e.username}</td>
+                                        <td style={{ fontFamily: 'monospace', fontSize: 12 }}>{e.ip_address}</td>
                                     </tr>
                                 ))}
                             </tbody>

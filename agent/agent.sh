@@ -91,6 +91,21 @@ get_sessions() {
     who 2>/dev/null | grep -v '^$' | wc -l || echo 0
 }
 
+# ── SSH sessions detail (JSON array) ──────────────────────────
+get_sessions_json() {
+    local out
+    out=$(who 2>/dev/null | awk 'BEGIN{printf "["}
+    {
+        user=$1
+        ip="local"
+        if (match($0, /\(([^)]+)\)/, a)) ip=a[1]
+        if (NR>1) printf ","
+        printf "{\"user\":\"%s\",\"ip\":\"%s\"}", user, ip
+    }
+    END{printf "]"}')
+    echo "${out:-[]}"
+}
+
 # ── Send to server ────────────────────────────────────────────
 send_metrics() {
     local cpu ram_info disk_info net_info load_info
@@ -98,7 +113,7 @@ send_metrics() {
     local disk_used disk_total
     local net_rx net_tx
     local load1 load5 load15
-    local uptime procs ping_ms sessions
+    local uptime procs ping_ms sessions sessions_json
 
     cpu=$(get_cpu)
 
@@ -125,6 +140,7 @@ send_metrics() {
     procs=$(get_procs)
     ping_ms=$(get_ping)
     sessions=$(get_sessions)
+    sessions_json=$(get_sessions_json)
 
     local payload
     payload=$(cat <<EOF
@@ -142,7 +158,8 @@ send_metrics() {
   "uptime_seconds":  ${uptime:-0},
   "process_count":   ${procs:-0},
   "ping_ms":         ${ping_ms:-0},
-  "active_sessions": ${sessions:-0}
+  "active_sessions": ${sessions:-0},
+  "ssh_sessions":    ${sessions_json:-[]}
 }
 EOF
 )

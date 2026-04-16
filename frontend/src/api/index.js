@@ -30,3 +30,5 @@ export const updateThresholds = (id, data) => api.put(`/thresholds/${id}`, data)
 export const getTelegram     = ()          => api.get('/telegram').then(r => r.data)
 export const updateTelegram  = (data)      => api.put('/telegram', data).then(r => r.data)
 export const testTelegram    = ()          => api.post('/telegram/test').then(r => r.data)
+
+export const getSshEvents    = (id, limit = 50) => api.get(`/ssh-events/${id}?limit=${limit}`).then(r => r.data)
